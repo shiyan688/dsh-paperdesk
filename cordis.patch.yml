@@ -1,0 +1,20 @@
+# dsh-paperdesk bundle patch layer.
+#
+# 这一层在 `dsh plugin --profile web add dsh-paperdesk` 安装时被应用，
+# 把插件行插进 web profile 的组合配置。所有可调项都在 `config` 下，
+# 留空即用默认值（见 README「配置」一节）。
+#
+# 插件提供两半：
+#   - 宿主半区（lib/index.js）：本地文库落盘、arXiv 检索、PDF 下载与全文抽取、
+#     7 个模型工具、回环 HTTP API（/paperdesk/api/*）；
+#   - 浏览器半区（lib/client.js）：侧栏入口 + 工作台浮层。
+- insert:
+    - id: dsh-paperdesk
+      name: 'dsh-paperdesk'
+      config:
+        # 文库根目录。留空 = <dsh 进程工作目录>/.dsh-paperdesk
+        root: ''
+        # 自定义 PDF 抽取命令（pdftotext 兼容的 CLI）；留空 = 自动探测
+        pdfCommand: ''
+        # 自定义 python 解释器；留空 = 自动探测 python/python3/py
+        pythonCommand: ''

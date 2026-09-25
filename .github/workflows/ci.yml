@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 是 engines 的下限；24 是当前 LTS 线；os 两个平台都跑，
+        # 因为这个插件大量依赖路径与子进程的平台差异（pdftotext / explorer / spawn）。
+        node: ['20', '22', '24']
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 尝试安装 DSH peer 依赖（用于跑接线测试）
+        # 这个插件自身零运行时依赖；peer 依赖只在跑「宿主入口接线测试」时需要。
+        # 允许失败：装不上时那部分用例会如实跳过，而不是让 CI 变红。
+        continue-on-error: true
+        run: npm install --no-save --no-audit --no-fund @deepseek-ai/schemastery @deepseek-ai/dsh-tools
+
+      - name: 运行测试
+        run: npm test
+
+      - name: 兼容性自查
+        # CI 里没有 DSH 安装，这一步应当只产生 WARN；有 FAIL 说明脚本本身坏了
+        run: npm run compat
+
+  guard:
+    name: 仓库不变量
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 静态守卫
+        run: node --test test/static-guard.test.mjs

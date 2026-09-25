@@ -1,0 +1,70 @@
+{
+  "name": "dsh-paperdesk",
+  "version": "0.1.0",
+  "private": false,
+  "description": "DSH 论文工作台：arXiv 检索、本地文库（题录 / PDF / 全文）、L1-L2-L3 三层精读笔记。宿主半区与浏览器半区同在一个包里，无构建步骤。",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  },
+  "files": [
+    "lib/",
+    "scripts/",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "COMPATIBILITY.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "test:guard": "node --test test/static-guard.test.mjs",
+    "compat": "node scripts/check-dsh-compat.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "paper",
+    "arxiv",
+    "literature",
+    "research",
+    "reading-notes",
+    "pdf"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
