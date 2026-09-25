@@ -49,8 +49,11 @@ dsh plugin --profile web add dsh-paperdesk
 
 `dsh plugin add` 的工作方式是：装完包之后，**按安装状态对账** `dsh.profile.bundles` ——
 只有当一个依赖能被解析出来、并且它的 `package.json` 里声明了 `dsh.bundle.patch`，它才会入栈成为一层。
-如果这一步没成功（例如 `file:` / 本地路径安装、或 pnpm 布局下解析不到），包会作为**普通依赖**装进去：
-不报错、不加载、界面上什么都不会发生。
+如果这一步没成功，包会作为**普通依赖**装进去：不报错、不加载、界面上什么都不会发生。
+
+> 实测记录：在**全新初始化**的 profile 上出现过这个失败（包写进了 `dependencies`，`dsh.profile.bundles` 没变）；
+> 在一个已经在用的 profile 上，同样的 `file:` 安装一次就对账成功。所以这不是 `file:` 安装本身的问题，
+> 但「新 profile + 首次安装」这个组合值得多看一眼。
 
 所以请核对一次：
 

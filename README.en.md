@@ -35,9 +35,13 @@ Restart the profile (`dsh web`) afterwards; a **📚 论文** entry appears at t
 
 `dsh plugin add` installs the package and then **reconciles** `dsh.profile.bundles` against the
 installed state: a dependency joins the layer stack only if it resolves *and* its `package.json`
-declares `dsh.bundle.patch`. When that fails (e.g. `file:`/local-path installs, or a pnpm layout
-where it cannot resolve), the package lands as a **plain dependency**: no error, no load, nothing
+declares `dsh.bundle.patch`. When that fails, the package lands as a **plain dependency**: no error, no load, nothing
 visible in the UI.
+
+> Observed: this failure happened on a **freshly initialized** profile (package written to
+> `dependencies`, `dsh.profile.bundles` unchanged), while the very same `file:` install reconciled
+> correctly on a profile already in use. So it is not specific to `file:` specs, but the
+> "new profile + first install" combination is worth a second look.
 
 So verify once:
 
