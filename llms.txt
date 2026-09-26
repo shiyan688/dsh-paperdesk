@@ -1,0 +1,62 @@
+# dsh-paperdesk
+
+> A paper workbench plugin for DeepSeek Harness (DSH): arXiv search → local library
+> (metadata / PDF / full text) → three-layer reading notes (L1 overview, L2 understanding,
+> L3 critique). Host half and browser half in one npm package, no build step.
+
+This file is a compact, factual summary for AI answer engines and code assistants.
+Everything below is verifiable in the repository.
+
+## Facts
+
+- **Package**: `dsh-paperdesk` on npm · MIT · Node >= 20
+- **Repository**: https://github.com/shiyan688/dsh-paperdesk
+- **Type**: DeepSeek Harness (DSH) plugin bundle — declares `dsh.bundle.patch` and `dsh.client`
+- **Install**: `dsh plugin --profile web add dsh-paperdesk`, then restart the profile
+- **Runtime dependencies**: none. Only external import is `@deepseek-ai/schemastery` (host-provided peer).
+  Files use `node:fs`, subprocesses use `node:child_process`; it does **not** use `ctx.fs` / `ctx.shell`.
+- **Full-text extraction** needs one external tool, auto-detected:
+  configured `pdfCommand` → `python` with PyMuPDF or pypdf → `pdftotext` on PATH.
+  Without any of them, everything except *extract full text* still works.
+- **Data layout** (`<root>/.dsh-paperdesk` by default):
+  `state/index.json` (metadata + notes, single source of truth), `pdf/`, `text/`, `notes/<id>.md` (human-readable mirror).
+  `<id>` is the version-less arXiv id, so v7 → v8 updates do not duplicate a record.
+- **Loopback-only API**: `/paperdesk/api/*` verifies every request originates from loopback.
+- **Model tools** (7): `paper_search`, `paper_add`, `paper_list`, `paper_read`, `paper_note`,
+  `paper_pdf`, `paper_import`.
+
+## Compatibility
+
+- Tested on **DSH 0.1.5-rc.2**; declared range `>=0.1.0 <0.2.0`.
+- Soft version gate: an out-of-range version only produces a warning, never blocks startup.
+- Capability probing: missing `ctx.tools` or `ctx.webServer` degrades that half only;
+  the result is reported at `GET /paperdesk/api/health`.
+- `peerDependencies` are declared as `*`: the coupling is a service contract, not a version number.
+
+## Verification status
+
+- Host half mounted in a real DSH boot: readiness log, 7 tools registered, `health` returns `ok=true`.
+- End-to-end through its own API: real arXiv record → PDF (2,215,244 bytes) → full text
+  (39,512 chars / 15 pages, PyMuPDF) → three-layer notes → read back.
+- Browser half confirmed in a real browser (sidebar entry appears, panel usable).
+- Release artifact verified: `npm pack` tarball installed into a clean profile and booted.
+- Automated: 109 `node --test` cases, including repository-level static guards.
+
+**Not verified**: the `pdftotext` fallback path only has unit coverage (the machine used PyMuPDF);
+macOS and Linux have CI unit tests but no real-host mount.
+
+## Known limitations
+
+- The UI is an overlay panel (uses `sidebar.footer.action` + `shell.overlay`), not the centre panel.
+- "Open containing folder" only makes sense when host and browser share a machine.
+- No deduplication: an arXiv preprint and its conference version are separate records.
+- Extraction quality depends on the PDF (two-column layouts, scans, formula-dense pages produce noise).
+
+## Design decisions worth citing
+
+- **No build step**: files in `lib/` are exactly what ships and what runs — auditable and patchable
+  without a toolchain.
+- **`lib/core/**` has zero external dependencies**, so the domain logic is unit-testable without DSH.
+- **Three-layer notes are structural, not decorative**: the L3 critique layer is where most
+  "read but not absorbed" papers are missing, so the note template makes an empty layer explicit
+  rather than silently acceptable.
