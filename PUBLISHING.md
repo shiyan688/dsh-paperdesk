@@ -68,6 +68,19 @@ npm publish --registry=https://registry.npmjs.org --access public
 npx --registry=https://registry.npmjs.org npm view dsh-paperdesk version   # 验证官方源能查到
 ```
 
+> **发布必须在自己的终端里手动跑一次。** 本机 npm 账号开了写操作 2FA，
+> 且走的是 npm 的**网页授权**流程（不是 6 位 TOTP）。实测在被脚本捕获输出的
+> 非交互环境里，`npm publish` 会打印授权 URL 后立刻失败：
+>
+> ```
+> npm error This operation requires a one-time password.
+> npm error Open this URL in your browser to authenticate: https://www.npmjs.com/auth/cli/...
+> ```
+>
+> 因为它需要一个能等你在浏览器里点确认的 TTY。所以自动化到「登录 + 本地校验」为止，
+> 最后一步公开动作留给人。若确实要在 CI 里发布，去 npm 网站建一个
+> **Granular Access Token**（勾选 bypass 2FA）配到 `.npmrc`，不要用交互式网页授权。
+
 `publishConfig.access` 已设为 `public`，包名 `dsh-paperdesk` 无 scope（实测该名字尚未被占用）。
 
 ---
