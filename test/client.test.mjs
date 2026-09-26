@@ -163,9 +163,15 @@ test('面板打开后按预期调用宿主 API（GET /state 与 GET /health）',
   button.props.onClick()
   const opened = mini.render(mini.React.createElement(overlayComponent, null))
 
-  // effect 在渲染时已经跑起来了（挂载 effect 里发了两个请求），这里只需等异步链走完。
-  // 千万不要调 opened.cleanups —— 那是卸载函数，会把组件里的 alive 标志置假。
-  await new Promise((resolve) => setTimeout(resolve, 20))
+  // effect 在渲染时已经跑起来了（挂载 effect 里发了两个请求），这里只需要等异步链走完。
+  // 用**有界轮询**而不是固定 sleep：固定等待在负载高时会偶发失败，
+  // 而间歇性红比没有测试更糟 —— 它会让人不再信任 CI。
+  // 另外千万不要调 opened.cleanups —— 那是卸载函数，会把组件里的 alive 标志置假。
+  const deadline = Date.now() + 2000
+  const arrived = () => calls.some((c) => c.url.endsWith('/health')) && calls.some((c) => c.url.endsWith('/state'))
+  while (!arrived() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
 
   const urls = calls.map((c) => c.url)
   assert.ok(urls.includes('/paperdesk/api/health'), `应请求 health，实际：${urls.join(', ')}`)
