@@ -1,8 +1,15 @@
 # dsh-paperdesk
 
+[![npm](https://img.shields.io/npm/v/dsh-paperdesk?registry_uri=https%3A%2F%2Fregistry.npmjs.org)](https://www.npmjs.com/package/dsh-paperdesk)
+[![license](https://img.shields.io/npm/l/dsh-paperdesk?registry_uri=https%3A%2F%2Fregistry.npmjs.org)](./LICENSE)
+
 > 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 用的**论文工作台**：
 > arXiv 检索 → 本地文库（题录 / PDF / 全文）→ L1-L2-L3 三层精读笔记。
 > 宿主半区与浏览器半区在同一个包里，**没有构建步骤**，`lib/` 里的文件就是跑起来的文件。
+
+> 已发布到 npm：`dsh-paperdesk@0.1.0`（MIT）。线上产物与仓库源码逐字节一致
+> （`dist.shasum` 与本地 `npm pack` 相同），并已在一个干净 profile 上按普通用户路径
+> 安装、启动、验证通过。
 
 ---
 
