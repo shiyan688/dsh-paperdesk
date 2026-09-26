@@ -73,6 +73,7 @@
     "url": "https://github.com/shiyan688/dsh-paperdesk/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

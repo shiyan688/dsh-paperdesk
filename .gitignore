@@ -22,3 +22,6 @@ npm-debug.log*
 
 # 本地打出的发布包
 *.tgz
+
+# 推送用的临时凭据文件（用完即删）
+.git-credentials

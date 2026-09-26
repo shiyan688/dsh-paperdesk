@@ -36,23 +36,39 @@ npm pack --dry-run --cache .npm-cache   # 看发布产物清单
 ## 2. 推到 GitHub
 
 ```sh
-git remote add origin https://github.com/shiyan688/dsh-paperdesk.git
-git push -u origin main
+gh repo create shiyan688/dsh-paperdesk --public --source=. --remote=origin --push
 ```
 
+> **推 CI 需要额外 scope。** 含 `.github/workflows/` 的提交会被 GitHub 拒收：
+> `refusing to allow an OAuth App to create or update workflow ... without 'workflow' scope`。
+> 本机 `gh` token 的 scope 是 `gist, read:org, repo`，所以要先补：
+>
+> ```sh
+> gh auth refresh -s workflow
+> ```
+>
+> 这一步是交互式的（浏览器确认），无法自动化。补完再推即可。
+
 推送前确认工作区干净（`git status`）、且没有把 `.test-tmp/`、`.npm-cache/`、
-`.dsh-paperdesk/` 之类的本地产物带进去（三者都已在 `.gitignore` 里）。
+`.dsh-paperdesk/`、`.git-credentials` 之类的本地产物带进去（都已在 `.gitignore` 里）。
 
 ---
 
 ## 3. 发布到 npm
 
+> **本机 registry 是镜像，必须先看这一条。**
+> 实测 `npm config get registry` 返回 `https://registry.npmmirror.com`（淘宝镜像）。
+> 镜像是**只读**的：直接 `npm login` / `npm publish` 会打到镜像上 —— 要么认证失败，
+> 要么发到一个别人 `npm install` 装不到的地方。所以每一步都要显式指向官方源；
+> `package.json` 的 `publishConfig.registry` 已经写死官方源，`npm publish` 这一条已经安全。
+
 ```sh
-npm login                 # 需要你自己的凭据，这一步无法代劳
-npm publish --access public
+npm login --registry=https://registry.npmjs.org
+npm publish --registry=https://registry.npmjs.org --access public
+npx --registry=https://registry.npmjs.org npm view dsh-paperdesk version   # 验证官方源能查到
 ```
 
-`publishConfig.access` 已设为 `public`，包名 `dsh-paperdesk` 无 scope。
+`publishConfig.access` 已设为 `public`，包名 `dsh-paperdesk` 无 scope（实测该名字尚未被占用）。
 
 ---
 
