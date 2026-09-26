@@ -74,6 +74,14 @@ test('插件同时满足两种 factory 约定（返回值与 module.exports）',
   assert.equal(typeof plugin.apply, 'function')
 })
 
+test('插件对象声明了 inject 含 slots（客户端服务门禁的硬要求）', async () => {
+  const { plugin } = await loadClient()
+  // 回归防线：不声明 inject 时，插件可能在 slots 就绪前 apply 完毕、静默不注册任何东西，
+  // 且 Cordis 永远不会重新激活它 —— 症状就是「模块加载了但界面里什么都没有」。
+  assert.ok(Array.isArray(plugin.inject), 'plugin.inject 必须是数组')
+  assert.ok(plugin.inject.includes('slots'), `plugin.inject 必须包含 slots，实际 ${JSON.stringify(plugin.inject)}`)
+})
+
 test('apply 注册侧栏入口与浮层两个 slot，参数符合列表协议', async () => {
   const { plugin } = await loadClient()
   const slots = fakeSlots()
@@ -92,9 +100,18 @@ test('apply 注册侧栏入口与浮层两个 slot，参数符合列表协议', 
   }
 })
 
-test('slots 服务缺失时安静退出，不抛错', async () => {
+test('slots 服务缺失时不抛错，但留下可查的错误日志（不许静默）', async () => {
   const { plugin } = await loadClient()
-  assert.doesNotThrow(() => plugin.apply({ get: () => undefined }))
+  const logged = []
+  const original = console.error
+  console.error = (...args) => logged.push(args.join(' '))
+  try {
+    assert.doesNotThrow(() => plugin.apply({ get: () => undefined }))
+  } finally {
+    console.error = original
+  }
+  assert.equal(logged.length, 1, '必须留下恰好一条错误日志')
+  assert.match(logged[0], /slots/)
 })
 
 test('侧栏入口渲染出可点的按钮，点击后浮层才渲染面板', async () => {
