@@ -67,6 +67,25 @@ test('package.json：files 覆盖运行时必需的一切', async () => {
   }
 })
 
+test('发布产物里不允许出现临时/调试脚本', async () => {
+  // 教训：`files: ["scripts/"]` 会把调试脚本一起发出去。
+  // 实测发现过 scripts/_analyze.mjs / _compare.mjs / _diag2.ps1 / _forensics.mjs 被 npm pack 收进包里。
+  // 约定：以下划线开头的文件是「本机一次性排查用」，永远不进发布产物。
+  const bad = []
+  for (const dir of ['lib', 'scripts']) {
+    for (const name of await readdir(join(root, dir))) {
+      if (name.startsWith('_')) bad.push(`${dir}/${name}`)
+    }
+  }
+  assert.deepEqual(bad, [], `以下文件会被 npm 发布出去，请删除或改名：${bad.join(', ')}`)
+
+  // 根目录同样不允许临时文件（用 files 白名单兜底，但根目录更该干净）
+  for (const name of await readdir(root)) {
+    if (name.startsWith('_') && !name.startsWith('_test')) bad.push(name)
+  }
+  assert.deepEqual(bad, [], `根目录存在临时文件：${bad.join(', ')}`)
+})
+
 test('cordis.patch.yml：行 id 与包名一致，config 键都在 schema 里', async () => {
   const pkg = await readJson('package.json')
   const patch = await read('cordis.patch.yml')

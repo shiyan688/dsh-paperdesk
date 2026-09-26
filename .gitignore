@@ -16,3 +16,9 @@ npm-debug.log*
 
 # 插件默认文库目录（从仓库目录启动插件时会生成）
 .dsh-paperdesk/
+
+# npm pack/publish 的本地缓存（避免写系统目录）
+.npm-cache/
+
+# 本地打出的发布包
+*.tgz

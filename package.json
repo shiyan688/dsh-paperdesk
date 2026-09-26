@@ -64,6 +64,14 @@
     "reading-notes",
     "pdf"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shiyan688/dsh-paperdesk.git"
+  },
+  "homepage": "https://github.com/shiyan688/dsh-paperdesk",
+  "bugs": {
+    "url": "https://github.com/shiyan688/dsh-paperdesk/issues"
+  },
   "publishConfig": {
     "access": "public"
   }
