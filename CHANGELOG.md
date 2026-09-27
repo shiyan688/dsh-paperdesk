@@ -3,6 +3,24 @@
 本文件记录所有值得用户注意的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.2] - 2026-09-27
+
+### 修复（严重，请升级；0.1.1 不要使用）
+
+- **0.1.1 让「解析全文」完全不可用。** 它新增的自建目录那行用了 `pathlib.Path(...)`，
+  但脚本头部只有 `import sys, json` —— 每次抽取都以
+  `NameError: name 'pathlib' is not defined` 失败。已在 import 行补上 `pathlib`。
+  0.1.1 建议 `npm deprecate dsh-paperdesk@0.1.1 "..."` 而不是 unpublish。
+
+### 测试（这才是它没被拦住的原因）
+
+- 原先那条「回归测试」只断言 python 源码里**出现** `Path(dest).parent.mkdir` 这串字样，
+  **从未执行过脚本** —— 所以这个 bug 一路通过了 112 项测试。现在两条新断言：
+  1. **静态面**：脚本里用到的模块（`pathlib.` / `json.` / `fitz.` 等）必须都出现在 import 中。
+     这条在受限沙箱里也能跑；已用「临时移除 `import pathlib`」验证过它确实会红。
+  2. **执行面**：python 可用时真的生成一页 PDF 并跑一遍脚本，断言回执 `ok:true` 与文本内容；
+     沙箱不允许起子进程时**如实跳过**（CI 上会执行）。
+
 ## [0.1.1] - 2026-09-27
 
 ### 修复

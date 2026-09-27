@@ -194,6 +194,54 @@ test('extractPdfText(python)：调用抽取器之前必须先建好输出目录�
   }, 'pdf-destdir')
 })
 
+test('EXTRACT_SCRIPT：python 源码用到的模块必须都在 import 里（回归）', () => {
+  // 真实事故：0.1.1 给脚本加了 pathlib.Path(dest).parent.mkdir(...) 却没加 `import pathlib`，
+  // 于是装了 0.1.1 之后**每一次「解析全文」都以 NameError 失败**。
+  // 当时的测试只断言源码里出现那串字样，从未执行脚本，所以完全没拦住 —— 这条补上静态面。
+  const imported = new Set()
+  for (const line of EXTRACT_SCRIPT.split('\n')) {
+    const plain = line.match(/^\s*import\s+(.+)$/)
+    if (plain) {
+      for (const part of plain[1].split(',')) imported.add(part.split('#')[0].trim().split(/\s+as\s+/)[0])
+    }
+    const from = line.match(/^\s*from\s+(\w+)\s+import/)
+    if (from) imported.add(from[1])
+  }
+  const used = new Set(
+    [...EXTRACT_SCRIPT.matchAll(/\b(pathlib|json|sys|os|shutil|urllib|re|math|fitz|pypdf)\./g)].map((m) => m[1]),
+  )
+  const missing = [...used].filter((name) => !imported.has(name))
+  assert.deepEqual(missing, [], `脚本用到但没 import 的模块：${missing.join(', ')}`)
+})
+
+test('EXTRACT_SCRIPT：python 可用时真的跑一遍（CI 会执行；受限沙箱如实跳过）', async () => {
+  const probe = await runCommand('python', ['-c', 'print(1)'], { timeoutMs: 15000 })
+  if (probe.spawnError !== '') {
+    // 本机沙箱不允许起子进程：跳过而不是伪装通过（CI 上没有这个限制）
+    assert.match(probe.spawnError, /EPERM|ENOENT/)
+    return
+  }
+  await withTmpDir(async (dir) => {
+    const maker = join(dir, 'make_pdf.py')
+    await writeFile(
+      maker,
+      'import sys, fitz\nd = fitz.open()\np = d.new_page()\np.insert_text((72, 72), "hello paperdesk")\nd.save(sys.argv[1])\n',
+      'utf8',
+    )
+    const pdf = join(dir, 'in.pdf')
+    const made = await runCommand('python', [maker, pdf], { timeoutMs: 60000 })
+    if (made.spawnError !== '' || !existsSync(pdf)) return // 没装 PyMuPDF 就算了，别伪装通过
+
+    const script = join(dir, 'extract_pdf.py')
+    await writeFile(script, EXTRACT_SCRIPT, 'utf8')
+    const out = join(dir, 'out.txt')
+    const ran = await runCommand('python', [script, pdf, out], { timeoutMs: 60000 })
+    const parsed = JSON.parse(ran.stdout.trim().split(/\r?\n/).filter((l) => l.startsWith('{')).pop() ?? 'null')
+    assert.equal(parsed?.ok, true, `脚本执行失败：${ran.stdout} ${ran.stderr}`)
+    assert.match(await readFile(out, 'utf8'), /hello paperdesk/)
+  }, 'pdf-run-script')
+})
+
 test('runCommand：命令不存在时返回 spawnError 而不是抛错', async () => {
   const result = await runCommand('definitely-not-a-real-command-xyz', ['--version'], { timeoutMs: 5000 })
   assert.equal(result.spawnError !== '', true, 'spawn 失败必须被识别出来')
