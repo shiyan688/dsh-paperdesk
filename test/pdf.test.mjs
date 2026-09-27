@@ -236,6 +236,7 @@ test('EXTRACT_SCRIPT：python 可用时真的跑一遍（CI 会执行；受限�
     await writeFile(script, EXTRACT_SCRIPT, 'utf8')
     const out = join(dir, 'out.txt')
     const ran = await runCommand('python', [script, pdf, out], { timeoutMs: 60000 })
+    if (ran.spawnError !== '') return // 沙箱对子进程的拒绝是间歇的：中途被拒同样如实跳过
     const parsed = JSON.parse(ran.stdout.trim().split(/\r?\n/).filter((l) => l.startsWith('{')).pop() ?? 'null')
     assert.equal(parsed?.ok, true, `脚本执行失败：${ran.stdout} ${ran.stderr}`)
     assert.match(await readFile(out, 'utf8'), /hello paperdesk/)
