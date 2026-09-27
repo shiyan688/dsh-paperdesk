@@ -195,6 +195,34 @@ test('paper_note：只给状态时走 update，不写笔记', async () => {
   assert.ok(result.text.includes('笔记已保存'))
 })
 
+test('paper_note：tags 字符串原样交给 update，空串不当清空', async () => {
+  const seen = []
+  const { service } = fakeService({
+    async update(id, patch) {
+      seen.push([id, patch])
+      return {
+        paper: {
+          id,
+          title: 'Attention',
+          notes: { quick: 'q', understand: '', critique: '' },
+          status: 'read',
+          rating: 4,
+          tags: ['教材', '可辨识性'],
+        },
+      }
+    },
+  })
+  const tools = Object.fromEntries(createToolDefinitions({ service }).map((t) => [t.name, t]))
+
+  const first = await tools.paper_note.execute({ id: 'x', tags: '教材,可辨识性' })
+  assert.deepEqual(seen.at(-1), ['x', { status: undefined, rating: undefined, tags: '教材,可辨识性' }])
+  assert.match(first.text, /标签：教材、可辨识性/, '标签有没有生效必须看得见，不能再静默')
+
+  // 模型常给未使用的参数填 ''，那不该被当成「清空标签」抹掉用户手写的内容
+  await tools.paper_note.execute({ id: 'x', status: 'read', tags: '' })
+  assert.deepEqual(seen.at(-1), ['x', { status: 'read', rating: undefined, tags: undefined }])
+})
+
 test('render 把结构化结果转成文本块', async () => {
   const { service } = fakeService()
   const tools = createToolDefinitions({ service })

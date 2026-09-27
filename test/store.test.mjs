@@ -175,6 +175,42 @@ test('patch 只认白名单字段', async () => {
   assert.equal(paper.pdfPath, '', 'pdfPath 不能被打补丁改掉')
 })
 
+test('标签归一：数组和逗号分隔字符串都认', async () => {
+  // 回归：模型工具 paper_note 按 schema 传字符串，UI 走 HTTP 传数组。
+  // patch() 曾只认数组，于是工具那条路被**静默丢弃**——调用方看不到任何报错。
+  const { store } = memoryStore()
+  const index = await store.load()
+  const { paper } = store.upsertArxiv(index, META)
+
+  store.patch(paper, { tags: 'a, b，c；d;e' })
+  assert.deepEqual(paper.tags, ['a', 'b', 'c', 'd', 'e'], '字符串必须被解析，而不是被忽略')
+
+  store.patch(paper, { tags: ['  x  ', '', 'y'] })
+  assert.deepEqual(paper.tags, ['x', 'y'])
+
+  store.patch(paper, { tags: Array.from({ length: 30 }, (_, i) => `t${i}`) })
+  assert.equal(paper.tags.length, 20, '最多 20 个')
+
+  store.patch(paper, { tags: '' })
+  assert.deepEqual(paper.tags, [], 'store 层空串即清空（工具层会先挡掉模型误传的空串）')
+})
+
+test('中文标签经索引存取后逐字不变', async () => {
+  // 回归：文库索引曾被按 GB18030 读 UTF-8，把「本地导入」毁成 6 个私用区/生僻字。
+  const { store } = memoryStore()
+  const index = await store.load()
+  const { paper } = store.upsertArxiv(index, META)
+
+  store.patch(paper, { tags: '教材,可辨识性,隐藏变量' })
+  await store.save(index)
+
+  const reloaded = await store.load()
+  const again = store.find(reloaded, paper.id)
+  assert.deepEqual(again.tags, ['教材', '可辨识性', '隐藏变量'])
+  // 私用区字符（U+E000–U+F8FF）是「按 GB18030 双重误解码」的指纹，绝不该出现
+  assert.equal(/[\uE000-\uF8FF]/.test(again.tags.join(',')), false)
+})
+
 test('writeNotes 只覆盖显式给出的层，并盖时间戳', async () => {
   const { store } = memoryStore(null, () => '2025-02-02T00:00:00.000Z')
   const index = await store.load()
