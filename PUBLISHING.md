@@ -105,6 +105,25 @@ node node_modules/dsh-paperdesk/scripts/check-dsh-compat.mjs --profile web
 第 3 条是 0.1.0 之前那次「装了但界面看不见」事故留下的检查点：**只有第 1、2 条通过时，
 插件可能仅仅在宿主侧活着**。控制台那行没出现就说明浏览器半区没被激活。
 
+### 两个实测过的环境坑
+
+**① 刚发布完，按包名安装可能拿到上一版。** 0.1.1 发布后立刻在干净 profile 里
+`dsh plugin --profile X add dsh-paperdesk`，装到的是 **0.1.0** —— pnpm 复用了本地缓存的
+包元数据（日志特征：`resolved 0, reused 1, downloaded 0`，且 `+ dsh-paperdesk 0.1.0`）。
+连显式写 `dsh-paperdesk@0.1.1` 都没绕过去；**用注册表 tarball URL 可以**：
+
+```sh
+dsh plugin --profile <测试 profile> add https://registry.npmjs.org/dsh-paperdesk/-/dsh-paperdesk-<版本>.tgz
+```
+
+这条路径还顺便更强：它跳过解析与 lockfile，**验的就是线上逐字节的那份产物**。
+（同一个 URL 的内容是否等于你本地打包，用 `dist.shasum` ↔ `npm pack` 的 shasum 对比即可确认。）
+
+**② 发布可能返回 `202 Accepted` 而不是 `201`。** npm 会打印
+`Your package is being processed and may take a few minutes to become available`，
+此时 `npm view <包> version` 仍显示上一版。这不是失败：日志里 `info ok` + 退出码 0 就是成功，
+等一两分钟即可（实测约 2 分钟）。
+
 ---
 
 ## 5. 出问题怎么办
