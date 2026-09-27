@@ -20,6 +20,13 @@ export function createMiniReact(options = {}) {
   let current = null
   /** 每次渲染派生的待执行 effect 队列。 */
   let pendingEffects = []
+  /** 每个函数组件一份持久 hook 槽位，这样 setState 触发的重渲染能读到更新后的值。 */
+  const scopes = new Map()
+  /** 最近一次 render 的根元素，重渲染时复用它。 */
+  let root = null
+  /** 最近一次渲染出来的树（用 getter 暴露，调用方拿到的始终是最新树）。 */
+  let lastTree = null
+  let rerenderDepth = 0
 
   function createElement(type, props, ...children) {
     const flat = children.length === 0 ? [] : children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false)
@@ -36,6 +43,7 @@ export function createMiniReact(options = {}) {
     // 才被 onClick 调用，那时 current 已经被还原成 null 了。
     const setter = (next) => {
       scope.slots[index] = typeof next === 'function' ? next(scope.slots[index]) : next
+      rerender()
     }
     return [scope.slots[index], setter]
   }
@@ -69,11 +77,26 @@ export function createMiniReact(options = {}) {
    * `cleanups` 是卸载函数，只在你想模拟「组件卸载」时才调用 —— 调它会把组件里
    * 的 `alive = false` 之类标志置假，从而掐掉还没完成的异步工作。
    *
+   * 与真实 React 的差别：setState 之后**同步**重渲染，并且返回值上的 `tree` 是
+   * getter —— 所以点完按钮再读 `view.tree` 拿到的是更新后的树，可以测交互
+   * （切标签页、点选择器等），而不只是首屏。
+   *
    * @param {any} element
    * @returns {{ tree: any, cleanups: Array<() => void> }}
    */
   function render(element) {
+    root = element
+    const view = run()
+    return {
+      get tree() { return lastTree },
+      cleanups: view.cleanups,
+    }
+  }
+
+  /** 用持久化的 hook 槽位走一遍树。 */
+  function run() {
     pendingEffects = []
+    for (const scope of scopes.values()) scope.cursor = 0
 
     function walk(node) {
       if (node === null || node === undefined || typeof node === 'boolean') return null
@@ -81,7 +104,12 @@ export function createMiniReact(options = {}) {
       if (Array.isArray(node)) return node.map(walk)
       if (typeof node.type === 'function') {
         const previous = current
-        current = { cursor: 0, slots: [], effects: {} }
+        let scope = scopes.get(node.type)
+        if (scope === undefined) {
+          scope = { cursor: 0, slots: [], effects: {} }
+          scopes.set(node.type, scope)
+        }
+        current = scope
         let produced
         try {
           produced = node.type({ ...(node.props ?? {}) })
@@ -95,8 +123,19 @@ export function createMiniReact(options = {}) {
       return { ...node, props: { ...node.props, children: walk(children) } }
     }
 
-    const tree = walk(element)
-    return { tree, cleanups: pendingEffects }
+    lastTree = walk(root)
+    return { cleanups: pendingEffects }
+  }
+
+  /** setState 触发的同步重渲染；加个深度上限防止写错时无限循环。 */
+  function rerender() {
+    if (root === null || rerenderDepth > 25) return
+    rerenderDepth += 1
+    try {
+      run()
+    } finally {
+      rerenderDepth -= 1
+    }
   }
 
   return { React, render }

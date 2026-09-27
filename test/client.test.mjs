@@ -182,6 +182,83 @@ test('面板打开后按预期调用宿主 API（GET /state 与 GET /health）',
   delete globalThis.fetch
 })
 
+test('导入页：宿主提供目录选择器时渲染「选择文件夹…」，选完自动扫描该目录', async () => {
+  const { plugin, mini } = await loadClient()
+  const slots = fakeSlots()
+  let picked = 0
+  const ctx = {
+    get: (key) => {
+      if (key === 'slots') return slots.service
+      if (key === 'uiWorkspace') return { pickDirectory: async () => { picked += 1; return 'D:/papers' } }
+      return undefined
+    },
+  }
+  plugin.apply(ctx)
+  const entryComponent = slots.registrations.find((i) => i.options.name === 'sidebar.footer.action').component
+  const overlayComponent = slots.registrations.find((i) => i.options.name === 'shell.overlay').component
+
+  const calls = []
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), body: String(init?.body ?? '') })
+    return {
+      status: 200,
+      json: async () => ({ ok: true, files: [{ path: 'D:/papers/a.pdf', name: 'a.pdf' }] }),
+    }
+  }
+  try {
+    const openButton = find(mini.render(mini.React.createElement(entryComponent, null)).tree, (el) => el.type === 'button')
+    openButton.props.onClick()
+    const view = mini.render(mini.React.createElement(overlayComponent, null))
+
+    const importTabButton = findAll(view.tree, (el) => el.type === 'button')
+      .find((el) => textOf(el).includes('导入 PDF'))
+    assert.ok(importTabButton !== undefined, '面板应有「导入 PDF」标签')
+    importTabButton.props.onClick() // 迷你 React 同步重渲染，view.tree 随即更新
+
+    const pickButton = findAll(view.tree, (el) => el.type === 'button')
+      .find((el) => textOf(el).includes('选择文件夹'))
+    assert.ok(pickButton !== undefined, '宿主有目录选择器时必须渲染「选择文件夹…」')
+
+    pickButton.props.onClick()
+    // 等的是「扫描请求发出去」，不是「pickDirectory 被调用」——
+    // 后者立刻发生，而扫描在 await 之后，先断言会偶发失败。
+    const deadline = Date.now() + 2000
+    while (!calls.some((c) => c.url.endsWith('/scan')) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    assert.equal(picked, 1, '应调用一次 pickDirectory')
+
+    const scanCall = calls.find((c) => c.url.endsWith('/scan'))
+    assert.ok(scanCall !== undefined, '选择目录后应自动扫描')
+    assert.match(scanCall.body, /D:\/papers/)
+  } finally {
+    delete globalThis.fetch
+  }
+})
+
+test('导入页：宿主没有目录选择器时不渲染该按钮（不假装有）', async () => {
+  const { plugin, mini } = await loadClient()
+  const slots = fakeSlots()
+  plugin.apply({ get: (key) => (key === 'slots' ? slots.service : undefined) })
+  const entryComponent = slots.registrations.find((i) => i.options.name === 'sidebar.footer.action').component
+  const overlayComponent = slots.registrations.find((i) => i.options.name === 'shell.overlay').component
+
+  globalThis.fetch = async () => ({ status: 200, json: async () => ({ ok: true, papers: [], stats: { total: 0, unread: 0, reading: 0, read: 0, pdf: 0, text: 0, noted: 0 } }) })
+  try {
+    const openButton = find(mini.render(mini.React.createElement(entryComponent, null)).tree, (el) => el.type === 'button')
+    openButton.props.onClick()
+    const view = mini.render(mini.React.createElement(overlayComponent, null))
+    const importTabButton = findAll(view.tree, (el) => el.type === 'button')
+      .find((el) => textOf(el).includes('导入 PDF'))
+    importTabButton.props.onClick()
+    const pickers = findAll(view.tree, (el) => el.type === 'button')
+      .filter((el) => textOf(el).includes('选择文件夹'))
+    assert.equal(pickers.length, 0, '没有选择器时不能渲染该按钮')
+  } finally {
+    delete globalThis.fetch
+  }
+})
+
 test('浏览器半区不碰 node 内置模块（静态检查）', async () => {
   const source = await readFile(clientPath, 'utf8')
   assert.ok(!/require\(\s*['"]node:/.test(source), '客户端不得 require node: 内置模块')

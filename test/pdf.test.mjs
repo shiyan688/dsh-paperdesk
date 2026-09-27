@@ -9,6 +9,7 @@
  */
 
 import { strict as assert } from 'node:assert'
+import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -171,6 +172,26 @@ test('downloadToFile：HTML 错误页 / 0 字节 / 超限 / HTTP 错都拒绝', 
       /HTTP 404/,
     )
   }, 'dl-bad')
+})
+
+test('extractPdfText(python)：调用抽取器之前必须先建好输出目录（回归）', async () => {
+  // 真实事故：文库目录被外部删过之后 text/ 不存在，而 python 侧当时直接 open(dest,'w')，
+  // 于是「解析全文」以 FileNotFoundError 失败，界面上只显示一句失败提示。
+  // 两侧都钉住：JS 侧开跑前建目录，python 源码自身也建。
+  assert.match(EXTRACT_SCRIPT, /Path\(dest\)\.parent\.mkdir/, 'python 源码必须自建输出目录')
+  await withTmpDir(async (dir) => {
+    const scriptPath = join(dir, '.tools', 'extract_pdf.py')
+    const destDir = join(dir, 'text') // 故意不预先创建
+    const dest = join(destDir, 'a.txt')
+    let dirExistedWhenRun = null
+    const run = async () => {
+      dirExistedWhenRun = existsSync(destDir)
+      return OK('{"ok":true,"engine":"pymupdf","pages":3,"chars":42}')
+    }
+    const result = await extractPdfText('/tmp/a.pdf', dest, { plan: { kind: 'python', command: 'python' }, scriptPath, run })
+    assert.equal(result.ok, true)
+    assert.equal(dirExistedWhenRun, true, '输出目录必须在抽取器启动前就存在')
+  }, 'pdf-destdir')
 })
 
 test('runCommand：命令不存在时返回 spawnError 而不是抛错', async () => {

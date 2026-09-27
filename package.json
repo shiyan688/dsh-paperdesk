@@ -1,6 +1,6 @@
 {
   "name": "dsh-paperdesk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "DSH 论文工作台：arXiv 检索、本地文库（题录 / PDF / 全文）、L1-L2-L3 三层精读笔记。宿主半区与浏览器半区同在一个包里，无构建步骤。",
   "license": "MIT",
