@@ -18,6 +18,11 @@ import { createMiniReact, find, findAll, textOf } from './helpers/mini-react.mjs
 const here = dirname(fileURLToPath(import.meta.url))
 const clientPath = join(here, '..', 'lib', 'client.js')
 
+/** 网页版：宿主 API 基址就是页面 origin。 */
+const WEB_BASE = 'http://127.0.0.1:3080'
+/** 桌面版：页面是 file://，`location.origin` 是字符串 "null"，基址退回 dsh.internal。 */
+const DESK_BASE = 'http://dsh.internal'
+
 /**
  * 在假的 `window.__ModuleLoader__` 里加载浏览器半区。
  * @returns {Promise<{ entry: any, plugin: any, requireCalls: string[] }>}
@@ -144,6 +149,8 @@ test('侧栏入口渲染出可点的按钮，点击后浮层才渲染面板', as
 })
 
 test('面板打开后按预期调用宿主 API（GET /state 与 GET /health）', async () => {
+  // 网页版：基址是当前 origin，请求是绝对 URL；桌面版见下一个用例
+  globalThis.location = { origin: WEB_BASE }
   const { plugin, mini } = await loadClient()
   const slots = fakeSlots()
   plugin.apply({ get: (key) => (key === 'slots' ? slots.service : undefined) })
@@ -174,12 +181,50 @@ test('面板打开后按预期调用宿主 API（GET /state 与 GET /health）',
   }
 
   const urls = calls.map((c) => c.url)
-  assert.ok(urls.includes('/paperdesk/api/health'), `应请求 health，实际：${urls.join(', ')}`)
-  assert.ok(urls.includes('/paperdesk/api/state'), `应请求 state，实际：${urls.join(', ')}`)
+  assert.ok(urls.includes(`${WEB_BASE}/paperdesk/api/health`), `应请求 health，实际：${urls.join(', ')}`)
+  assert.ok(urls.includes(`${WEB_BASE}/paperdesk/api/state`), `应请求 state，实际：${urls.join(', ')}`)
   assert.ok(calls.every((c) => c.method === 'GET'))
   assert.ok(opened.tree !== null)
   assert.ok(opened.cleanups.length >= 1, '面板挂载应注册卸载清理（订阅、键盘监听等）')
   delete globalThis.fetch
+  delete globalThis.location
+})
+
+test('桌面版（file:// 页面）把宿主 API 解析到 dsh.internal', async () => {
+  // DSH Studio 的页面是 file://，`location.origin` 是字符串 "null"。
+  // 这时相对路径会被当成文件路径、请求全部打空，所以必须退回 dsh.internal，
+  // 由桌面外壳转给宿主。同 dsh 自带的 dsh-client-connection / dsh-client-file-upload。
+  globalThis.location = { origin: 'null' }
+  const { plugin, mini } = await loadClient()
+  const slots = fakeSlots()
+  plugin.apply({ get: (key) => (key === 'slots' ? slots.service : undefined) })
+  const entryComponent = slots.registrations.find((item) => item.options.name === 'sidebar.footer.action').component
+  const overlayComponent = slots.registrations.find((item) => item.options.name === 'shell.overlay').component
+
+  const urls = []
+  globalThis.fetch = async (url) => {
+    urls.push(String(url))
+    return { status: 200, json: async () => ({ ok: true, papers: [], stats: { total: 0 } }) }
+  }
+  try {
+    const button = find(mini.render(mini.React.createElement(entryComponent, null)).tree, (el) => el.type === 'button')
+    button.props.onClick()
+    mini.render(mini.React.createElement(overlayComponent, null))
+
+    const deadline = Date.now() + 2000
+    while (!urls.some((u) => u.endsWith('/health')) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    assert.ok(urls.length > 0, '面板挂载后应当发出请求')
+    assert.ok(
+      urls.every((u) => u.startsWith(`${DESK_BASE}/paperdesk/api/`)),
+      `桌面版所有请求都应指向 ${DESK_BASE}，实际：${urls.join(', ')}`,
+    )
+    assert.ok(urls.some((u) => u.endsWith('/health')), `应请求 health，实际：${urls.join(', ')}`)
+  } finally {
+    delete globalThis.fetch
+    delete globalThis.location
+  }
 })
 
 test('导入页：宿主提供目录选择器时渲染「选择文件夹…」，选完自动扫描该目录', async () => {

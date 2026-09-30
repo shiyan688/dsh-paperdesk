@@ -50,6 +50,26 @@
 
 主题色同时兼容两代 token 名（`--dsw-alias-*` 与 `--dsh-color-*`），并各有硬编码兜底色。
 
+## 桌面版（DSH Studio）
+
+桌面版的页面是 `file://`，因此 `location.origin` 是**字符串 `"null"`**——这时 `fetch('/paperdesk/api/state')`
+这样的相对路径会被解析成文件路径，请求全打空。所以客户端半区不写死相对路径，而是：
+
+```js
+const HOST_BASE = location.origin === 'null' ? 'http://dsh.internal' : location.origin
+const API = new URL('/paperdesk/api', HOST_BASE).toString()
+```
+
+`http://dsh.internal` 不是真实域名，是 **DSH 桌面外壳约定的回环别名**：桌面版把它的请求转给宿主进程。
+这与 dsh 自带的 `dsh-client-connection`、`dsh-client-file-upload` 是同一套做法（`resolveBase()` /
+`resolveUrl()`），所以网页版行为不变，桌面版也能连上宿主。
+
+宿主侧不用改：`ctx.webServer.register` 在桌面版同样可用，而回环检查只看 `req.socket.remoteAddress`
+（转发过来的请求仍是环回地址），不校验 `Origin`——因此 `file://` 页面带的 `Origin: null` 不会被误拒。
+
+`test/client.test.mjs` 里有两条对应用例：网页版断言绝对 URL 是当前 origin，桌面版断言落到 `dsh.internal`。
+
+
 ## 依赖的 Node 能力
 
 | 能力 | 用途 | 缺失时的行为 |
